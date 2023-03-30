@@ -31,22 +31,50 @@ df$LowLag <- lagpad(df$GSPC.Low, 1)
 df$OpenLag <- lagpad(df$GSPC.Open, 1)
 df$Direction <- ifelse(lag(price_diff) > 0, "Up", "Down")
 df$Direction <- as.factor(df$Direction)
+# Convert the date column to a date format
+df$Date <- as.Date(rownames(df))
 
 df1 <- df
 df1 <- df1[-1,]
 
-df <- df[c(1, 7, 8, 9, 10, 11)]
-df1 <- df1[c(1, 7, 8, 9, 10, 6)]
+df <- df[c(1, 7, 8, 9, 10, 12, 11)]
+df1 <- df1[c(1, 7, 8, 9, 10, 12, 6)]
 
-#rownames(df) <- NULL
+rownames(df) <- NULL
+rownames(df1) <- NULL
 
 head(df)
 head(df1)
-
+#######################################################################
+#Preliminary analysis
+#########################################################################
 cor(df[, 1:5], use = "complete.obs")
 
 
-###----------------------------------------------------------------
+# Create a time series object
+sp500.ts <- ts(df$GSPC.Open)
+# Plot the time series data
+plot(sp500.ts, main = "S&P 500 Index", xlab = "Year", ylab = "Index Close Value")
+# Plot the sample autocorrelation function
+acf(sp500.ts)
+# Plot the partial autocorrelation function
+pacf(sp500.ts)
+# Perform the Ljung-Box test for autocorrelation
+Box.test(sp500.ts, lag = 12, type = "Ljung-Box")
+
+summary((df$CloseLag - df$OpenLag)/df$CloseLag * 100)
+plot((df$CloseLag - df$OpenLag)/df$CloseLag * 100)
+gs <- GSPC$GSPC.Close[-1, ]
+d <- ((gs - df$CloseLag)/ gs * 100)
+summary(d)
+plot(d)
+
+E_no_Open = 0.53*0.057
+E_no_Open * 100
+E_Open = 0.72*0.051
+E_Open * 100
+
+######-------------------------------------------------------#######
 #Train-test split
 train <- (index(df) < (0.8 * nrow(df)))
 df.train <- df[train, ]
@@ -58,6 +86,12 @@ df1.test <- df1[!train,]
 
 tail(df)
 tail(df1)
+
+
+
+tail(GSPC, n=2)
+new_data <- data.frame(GSPC.Open=4046.74, CloseLag=4027.81, HighLag=4030.59, 
+                       LowLag=3999.53, OpenLag=3999.53, Date=as.Date("2023-03-30"))
 
 ###############################################################################
 #----------------------Logistic regression
@@ -78,9 +112,6 @@ mean(glm.pred == df.test$Direction)
 #new_data <- data.frame(GSPC.Open=tail(GSPC$GSPC.Open, n=1)[1,1], CloseLag=tail(df$CloseLag, n=1), HighLag=tail(df$HighLag, n=1), 
 #                      LowLag=tail(df$LowLag, n=1), OpenLag=tail(df$OpenLag, n=1))
 
-tail(GSPC, n=2)
-new_data <- data.frame(GSPC.Open=3999.53, CloseLag=3971.27, HighLag=3979.2, 
-                       LowLag=3951.53, OpenLag=3974.13)
 
 predict(glm.fit, newdata = new_data, type = "response")
 
@@ -106,7 +137,7 @@ tail(lda.class)
 tail(df.test$Direction)
 
 table(tail(lda.class),
-      tail(df.test$Direction), )
+      tail(df.test$Direction))
 
 predict(lda.fit, newdata = new_data, type = "response")
 
@@ -145,7 +176,8 @@ predict(qda.fit, newdata = new_data, type = "response")
 ######################################################################################
 ##-----------Linear regression
 #######################################################################################
-lm.fit <- lm(GSPC.Adjusted ~ GSPC.Open + CloseLag, data = df1.train)
+df1.train <- df1.train[-4551, ]
+lm.fit <- lm(GSPC.Adjusted ~ . - LowLag - OpenLag, data = df1.train)
 summary(lm.fit)
 
 confint(lm.fit)
@@ -164,7 +196,7 @@ pred.error <- lm.pred[, 1] - df1.test$GSPC.Adjusted
 
 tail(pred.error)
 summary(pred.error)
-plot(pred.error)
+plot(pred.error, x=df1.test$Date)
 hist(pred.error, breaks = 30)
 plot(density(pred.error))
 
@@ -172,9 +204,6 @@ tail(lm.pred[, 1] - df1.test$CloseLag)
 up_down <- ifelse((lm.pred[, 1] - df1.test$CloseLag) > 0, "Up", "Down")
 table(up_down, df.test$Direction[-3])
 
-tail(GSPC)
-new_ldata = data.frame(GSPC.Open=3999.53, CloseLag=3971.53, HighLag=3979.2, 
-                       LowLag=3951.53, OpenLag=3974.13)
+predict(lm.fit, interval = "prediction", newdata = new_data)
 
-predict(lm.fit, interval = "prediction", newdata = new_ldata)
 
